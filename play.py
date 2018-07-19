@@ -389,7 +389,7 @@ class Game:
                 continue
             else:
                 log("Reorganizing card %d", i)
-                time.sleep(1)
+                time.sleep(.1)
                 self.remove_cards(board, [c])
                 x, y = self.next_spot()
                 self.place(c, x, y, board)
