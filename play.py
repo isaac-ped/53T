@@ -132,7 +132,9 @@ class CardDrawing:
     def draw(self, y, x):
         log("Drawing at %d, %d", y, x)
 
-        self.win = curses.newwin(self.HEIGHT, self.WIDTH+ 2, y, x)
+        if self.win is None:
+            self.win = curses.newwin(self.HEIGHT, self.WIDTH+ 2, y, x)
+        self.win.clear()
         self.win.bkgd(self.color.normal)
         log("H: %d, W: %d, y: %d, x: %d, text:\n%s", self.HEIGHT, self.WIDTH, y, x, self.text)
         self.win.addstr(0,0,str(self.text), self.color.normal)
@@ -157,6 +159,14 @@ class CardDrawing:
             return
         self.win.clear()
         self.win.bkgd(*bkgd_args)
+        self.win.refresh()
+
+    def label(self, label):
+        self.win.addstr(self.HEIGHT - 2, self.WIDTH - 1, label)
+        self.win.refresh()
+
+    def unlabel(self):
+        self.win.addstr(self.HEIGHT - 2, self.WIDTH - 1, ' ')
         self.win.refresh()
 
 class Color:
@@ -229,10 +239,14 @@ class Board:
             f = u'\u2588'.encode('utf-8')
     )
 
+    MSGBG = curses.COLOR_BLACK
+    MSGFG = curses.COLOR_CYAN
+
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self._col_i = 1
         self.bgcol = Color(self.FG, self.BG)
+        self.msgcol = Color(self.MSGFG, self.MSGBG)
 
         self.card_colors = {
                 k : Color(v, self.CARD_BG, sel_bg = self.SEL_CARD_BG, attrs=curses.A_BOLD)
@@ -247,6 +261,10 @@ class Board:
                 ))
 
         self.cards = dict() # (x,y) => CardDrawing()
+
+        self.msgwin = curses.newwin(3, 75, 1, 2)
+        self.msgwin.bkgd(self.msgcol.normal)
+        self.msgwin.refresh()
 
         pass
 
@@ -276,6 +294,10 @@ class Board:
             log("ERROR: (%d,%d) not a card!", x, y)
         self.cards[(x,y)].set_selected(True)
 
+    def deselect_card(self, x, y):
+        if ((x, y) not in self.cards):
+            return
+        self.cards[(x, y)].set_selected(False)
 
     def card_coords(self, x, y):
         return (y * self.ROW_HEIGHT + self.OFFSET_Y,
@@ -298,6 +320,20 @@ class Board:
         if ((x, y) not in self.cards):
             log("ERROR: (%d, %d) not a card!", x, y)
         self.cards[(x, y)].undraw('-', self.bgcol.normal)
+
+    def display_message(self, message):
+        self.msgwin.clear()
+        self.msgwin.bkgd(' ', self.msgcol.normal)
+        self.msgwin.addstr(1, 1, message)
+        self.msgwin.refresh()
+
+    def label_card(self, x, y, label):
+        if (x,y) in self.cards:
+            self.cards[(x,y)].label(label)
+
+    def unlabel_cards(self):
+        for card in self.cards.values():
+            card.unlabel()
 
 class Card:
 
@@ -359,7 +395,6 @@ class Deck:
 class Game:
 
     BOARD_SHAPE = (3, 4)
-    EXTRAS_DIM = 0
 
     MAX_CARDS = 18
     MAX_NORMAL = BOARD_SHAPE[0] * BOARD_SHAPE[1]
@@ -368,12 +403,24 @@ class Game:
         self.deck = Deck()
         self.layout = dict()
         self.deck.shuffle()
+        self.selected = dict()
 
     def cards_remain(self):
         return self.deck.cards_remaining() > 0
 
     def is_set(self, a, b, c):
-        return a.third(b) == c.properties
+        if a.third(b) == c.properties:
+            log("Cards are a set!")
+            return True
+        else:
+            log("%s needed, %s given", a.third(b), c.properties)
+            return False
+
+    def set_selected(self):
+        return len(self.selected) == 3 and self.is_set(*self.selected.values())
+
+    def card_exists(self, x, y):
+        return (x, y) in self.layout
 
     def card_loc(self, card):
         for k, v in self.layout.items():
@@ -393,8 +440,8 @@ class Game:
 
     def reorganize(self, board):
         for i in range(self.MAX_CARDS)[::-1]:
-            if self.is_full():
-                return
+            #if self.is_full():
+            #    return
             if i < self.BOARD_SHAPE[0] * self.BOARD_SHAPE[1]:
                 return
             x, y, c = self.iloc(i)
@@ -418,16 +465,10 @@ class Game:
         for y in range(self.BOARD_SHAPE[1]):
             for x in range(self.BOARD_SHAPE[0]):
                 yield x,y
-        for ex_b in range(2):
-            for ex_a in range(self.BOARD_SHAPE[(self.EXTRAS_DIM + 1) % 2]):
-                if self.EXTRAS_DIM == 1:
-                    x = ex_a
-                    y = self.BOARD_SHAPE[1] + ex_b
-                else:
-                    x = self.BOARD_SHAPE[0] + ex_b
-                    y = ex_a
-
-                yield x, y
+        for ex_x in range(3):
+            yield self.BOARD_SHAPE[0], ex_x
+        for ex_x in range(3):
+            yield self.BOARD_SHAPE[0] + 1, ex_x
 
     def iloc(self, i): # TODO: This is awful
         for idx, (x,y) in enumerate(self.iterxy()):
@@ -445,6 +486,8 @@ class Game:
         board.draw_card(card, x, y)
 
     def place_next(self, board):
+        if len(self.layout) == self.MAX_CARDS:
+            return
         card = self.deck.draw()
         x, y = self.next_spot()
         if x is None:
@@ -464,11 +507,24 @@ class Game:
             x, y = self.card_loc(card)
             board.select_card(x, y)
 
+    def toggle_selection(self, board, x, y):
+        if (x, y) in self.layout:
+            if (x, y) in self.selected:
+                board.deselect_card(x, y)
+                del self.selected[(x, y)]
+            else:
+                board.select_card(x, y)
+                self.selected[(x, y)] = self.layout[(x, y)]
+
     def remove_cards(self, board, cards):
         for card in cards:
             x, y = self.card_loc(card)
             del self.layout[(x, y)]
             board.undraw_card(x, y)
+
+    def remove_selection(self, board):
+        log("Removing cards...")
+        self.remove_cards(board, self.selected.values())
 
     def is_full(self):
         for y in range(self.BOARD_SHAPE[1]):
@@ -477,6 +533,96 @@ class Game:
                     return False
         return True
 
+    def deselect_all(self, board):
+        for x, y in self.selected.keys():
+            self.toggle_selection(board, x, y)
+
+
+
+class Controller:
+
+    DELAY = .01
+
+    KEYS = [
+            ['1', '2', '3', '4', '5'],
+            ['q', 'w', 'e', 'r', 't'],
+            ['a', 's', 'd', 'f', 'g'],
+            ['z', 'x', 'c', 'v', 'b'],
+        ]
+
+    def __init__(self, board, game, stdscr):
+        self.board = board
+        self.game = game
+        self.stdscr = stdscr
+
+        self.keymap = {}
+
+        for y, row in enumerate(self.KEYS):
+            for x, key in enumerate(row):
+                self.keymap[key] = (x, y)
+
+        self.msg = 'Press SPACEBAR for SET | ENTER for CARDS'
+
+    def fill_board(self):
+        while self.game.cards_remain() and not self.game.is_full():
+            self.game.place_next(self.board)
+            time.sleep(self.DELAY)
+
+    def select_set(self):
+
+        while 1:
+            ch = chr(self.stdscr.getch())
+            if ch in self.keymap:
+                x, y = self.keymap[ch]
+                if self.game.card_exists(x, y):
+                    self.game.toggle_selection(self.board, x, y)
+            if ch == ' ':
+                if self.game.set_selected():
+                    self.game.remove_selection(self.board)
+                    self.game.reorganize(self.board)
+                    if not self.game.is_full():
+                        for _ in range(3):
+                            self.game.place_next(self.board)
+                            time.sleep(.1)
+                self.game.deselect_all(self.board)
+                self.board.unlabel_cards()
+                return
+
+
+    def control_loop(self):
+
+        self.fill_board()
+
+        while self.game.cards_remain():
+
+            self.board.display_message(self.msg)
+
+            ch = self.stdscr.getch()
+            if ch == ord('\n'):
+                for _ in range(3):
+                    self.game.place_next(self.board)
+            elif ch != ord(' '):
+                self.msg = 'I said SPACEBAR or ENTER!'
+                self.board.unlabel_cards()
+            else:
+                self.msg = 'You found a set? Good for you! Select and press SPACE again...'
+                self.board.display_message(self.msg)
+                for y, row in enumerate(self.KEYS):
+                    for x, key in enumerate(row):
+                        if self.game.card_exists(x,y):
+                            self.board.label_card(x, y, key.upper())
+                self.select_set()
+                self.msg = 'Press SPACEBAR for SET | ENTER for more CARDS'
+
+
+def run_controller(stdscr):
+
+    Color.init()
+    board = Board(stdscr)
+    board.init()
+    game = Game()
+
+    Controller(board, game, stdscr).control_loop()
 
 def run(stdscr):
 
@@ -494,6 +640,11 @@ def run(stdscr):
                 game.place_next(board)
                 time.sleep(.1)
             set = game.find_set()
+
+        ch = stdscr.getch()
+        board.display_message("Pressed: {}".format(chr(ch)))
+
+
         while set is not None:
             game.select_cards(board, set)
             time.sleep(.21)
@@ -506,4 +657,4 @@ def run(stdscr):
 
 
 if __name__ == '__main__':
-    curses.wrapper(run)
+    curses.wrapper(run_controller)
