@@ -5,6 +5,8 @@ import random
 import curses
 import time
 import locale
+import codecs
+import sys
 
 INVERT = False
 
@@ -15,15 +17,19 @@ else:
     BGCOL = curses.COLOR_WHITE
     FGCOL = curses.COLOR_BLACK
 
-logging.basicConfig(filename='example.log',level=logging.DEBUG)
+logging.basicConfig(filename='play.log',level=logging.DEBUG)
 
 def log(*args, **kwargs):
     logging.info(*args, **kwargs)
 
-locale.setlocale(locale.LC_ALL,"")
+import locale
+locale.setlocale(locale.LC_ALL, '')
 
 def reallen(s):
-    return len(s.decode('utf-8'))
+    try:
+        return len(s.decode('utf-8'))
+    except Exception:
+        return len(s)
 
 def ljust_ansi(s, width):
     swidth = reallen(s)
@@ -33,12 +39,12 @@ def center_block(b, width):
     lines = []
     for l in b.split('\n'):
         swidth = reallen(l)
-        lpad = ' '*((width - swidth) / 2)
+        lpad = ' '*int((width - swidth) / 2)
         rpad = lpad + ' '*((width - swidth) % 2)
         lines.append(lpad + l + rpad)
     return '\n'.join(lines)
 
-def append_block(args, height=None):
+def append_block(args, height=0):
     s1 = args[0]
     for s2 in args[1:]:
 
@@ -117,6 +123,7 @@ class CardDrawing:
         if fill.strip() == '':
             return text
 
+        fill = str(fill)
         return re.sub(r"(?<=[/\\|])[ _]*([ _])[ _]*(?=[/\\|])", 
                 lambda x: x.group(0).replace(' ', fill).replace('_', fill),
                 text)
@@ -127,7 +134,8 @@ class CardDrawing:
 
         self.win = curses.newwin(self.HEIGHT, self.WIDTH+ 2, y, x)
         self.win.bkgd(self.color.normal)
-        self.win.addstr(0,0,self.text, self.color.normal)
+        log("H: %d, W: %d, y: %d, x: %d, text:\n%s", self.HEIGHT, self.WIDTH, y, x, self.text)
+        self.win.addstr(0,0,str(self.text), self.color.normal)
         self.win.refresh()
 
     def set_selected(self, flag):
@@ -274,12 +282,17 @@ class Board:
                 x * self.ROW_WIDTH + self.OFFSET_X)
 
     def draw_card(self, card, x, y):
-        params = self.card_drawing_params(card)
-        if ((x, y) in self.cards):
-            self.cards[(x, y)].undraw('-', self.bgcol.normal)
-        card_drawing = CardDrawing(**params)
-        card_drawing.draw(*self.card_coords(x, y))
-        self.cards[(x, y)] = card_drawing
+        try:
+            params = self.card_drawing_params(card)
+            if ((x, y) in self.cards):
+                self.cards[(x, y)].undraw('-', self.bgcol.normal)
+            card_drawing = CardDrawing(**params)
+            card_drawing.draw(*self.card_coords(x, y))
+            self.cards[(x, y)] = card_drawing
+        except:
+            if self.SHADINGS['f'] != '#':
+                self.SHADINGS['f'] = '#'
+                self.draw_card(card, x, y)
 
     def undraw_card(self, x, y):
         if ((x, y) not in self.cards):
@@ -466,6 +479,8 @@ class Game:
 
 
 def run(stdscr):
+
+
     Color.init()
     board = Board(stdscr)
     board.init()
