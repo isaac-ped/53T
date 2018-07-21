@@ -534,7 +534,7 @@ class Game:
         return True
 
     def deselect_all(self, board):
-        for x, y in self.selected.keys():
+        for x, y in self.selected.keys()[:]:
             self.toggle_selection(board, x, y)
 
 
