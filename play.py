@@ -136,7 +136,6 @@ class CardDrawing:
             self.win = curses.newwin(self.HEIGHT, self.WIDTH+ 2, y, x)
         self.win.clear()
         self.win.bkgd(self.color.normal)
-        log("H: %d, W: %d, y: %d, x: %d, text:\n%s", self.HEIGHT, self.WIDTH, y, x, self.text)
         self.win.addstr(0,0,str(self.text), self.color.normal)
         self.win.refresh()
 
@@ -360,26 +359,31 @@ class Card:
                     return c
 
     def third(self, second):
-
         color = self.third_prop(self.COLORS, self.color, second.color)
         shape = self.third_prop(self.SHAPES, self.shape, second.shape)
         shade = self.third_prop(self.SHADINGS, self.shading, second.shading)
         number = self.third_prop(self.NUMBERS, self.number, second.number)
 
-        return color, shape, shade, number
+        return Card(color, shape, shade, number)
 
+
+    def __eq__(self, other):
+        return self.properties == other.properties
+
+    def __str__(self):
+        return '< Card: ' + str(self.properties) + " >"
 
 class Deck:
 
-    def __init__(self):
-        all_params = list(itertools.product(
-            ('r','b','g'),
-            ('s','d','o'),
-            ('e','f','s'),
-            (1,2,3)
-        ))
+    ALL_PARAMS = list(itertools.product(
+        Card.COLORS,
+        Card.SHAPES,
+        Card.SHADINGS,
+        Card.NUMBERS
+    ))
 
-        self.all_cards = [Card(*p) for p in all_params]
+    def __init__(self):
+        self.all_cards = [Card(*p) for p in self.ALL_PARAMS]
 
         self.deck = self.all_cards[:]
 
@@ -391,6 +395,52 @@ class Deck:
 
     def draw(self):
         return self.deck.pop()
+
+
+class LocaLGame:
+
+    def __init__(self, host):
+        self.layout = dict()
+        self.selection = dict()
+        self.host = host
+
+    def get_card(self, x, y):
+        return self.layout.get((x, y), None)
+
+    def place(self, card, x, y, board):
+        if (x, y) in self.layout:
+            if (x, y) in self.selection:
+                del self.selection[(x, y)]
+            board.undraw_card(x, y)
+        self.layout[(x,y)] = card
+        board.draw_card(card, x, y)
+
+    def remove(self, card, x, y, board):
+        if (x, y) not in self.layout:
+            log_warn("Attempted to remove non-existent card %d %d", x, y)
+            return
+        if self.layout[(x, y)] != card:
+            log_warn("Card changed before removal? (%d %d)", x, y)
+            return
+        if (x, y) in self.selection:
+            del self.selection[(x, y)]
+        board.undraw_card(x, y)
+
+    def set_selection(self, x, y, value):
+        if value:
+            board.select_card(x, y)
+            self.selection[(x, y)] = self.layout[(x, y)]
+        else:
+            board.deselect_card(x, y)
+            del self.selection[(x, y)]
+
+    def toggle_selection(self, x, y):
+        if (x, y) not in self.layout:
+            log_error("Attempted to toggle non-existent location %d %d", x, y)
+            return
+        select = (x, y) not in self.selection
+        self.set_selection(x, y, select)
+        host.send_select(x, y, select)
 
 class Game:
 
@@ -409,14 +459,15 @@ class Game:
         return self.deck.cards_remaining() > 0
 
     def is_set(self, a, b, c):
-        if a.third(b) == c.properties:
+        if a.third(b) == c:
             log("Cards are a set!")
             return True
         else:
-            log("%s needed, %s given", a.third(b), c.properties)
+            log("%s needed, %s given", a.third(b), c)
             return False
 
     def set_selected(self):
+        log("%d cards selected", len(self.selected))
         return len(self.selected) == 3 and self.is_set(*self.selected.values())
 
     def card_exists(self, x, y):
@@ -519,6 +570,8 @@ class Game:
     def remove_cards(self, board, cards):
         for card in cards:
             x, y = self.card_loc(card)
+            if (x, y) in self.selected:
+                del self.selected[(x,y)]
             del self.layout[(x, y)]
             board.undraw_card(x, y)
 
@@ -624,7 +677,7 @@ def run_controller(stdscr):
 
     Controller(board, game, stdscr).control_loop()
 
-def run(stdscr):
+def autoplay(stdscr):
 
 
     Color.init()
@@ -641,10 +694,6 @@ def run(stdscr):
                 time.sleep(.1)
             set = game.find_set()
 
-        ch = stdscr.getch()
-        board.display_message("Pressed: {}".format(chr(ch)))
-
-
         while set is not None:
             game.select_cards(board, set)
             time.sleep(.21)
@@ -657,4 +706,8 @@ def run(stdscr):
 
 
 if __name__ == '__main__':
-    curses.wrapper(run_controller)
+
+    if '--auto' in sys.argv:
+        curses.wrapper(autoplay)
+    else:
+        curses.wrapper(run_controller)
