@@ -140,10 +140,12 @@ class CardDrawing:
 
     def undraw(self, bgchar, bgcol):
         if self.win is None:
+            log_warn("Cannot undraw undrawn card")
             return
         self.win.clear()
         self.win.bkgd(bgchar, bgcol)
         self.win.refresh()
+        log("Undrawed card!")
 
     def label(self, label):
         self.win.addstr(self.HEIGHT - 2, self.WIDTH - 1, label)
@@ -299,6 +301,7 @@ class Board:
             log_warn("Cannot undraw (%d, %d): not a placed card", x, y)
             return
         self.cards[(x, y)].undraw('-', self.bgcol.normal)
+        del self.cards[(x,y)]
 
     def display_message(self, message):
         self.msgwin.clear()
@@ -349,10 +352,27 @@ class LocalController:
         self.event_handlers = dict(
                 keypress = self.handle_keypress,
                 place = self.handle_place,
-                yell_set = self.handle_yell_set,
+                set_yelled = self.handle_set_yelled,
                 select = self.handle_select,
-                deselect = self.handle_deselect
+                deselect = self.handle_deselect,
+                resume = self.resume_play,
+                remove = self.handle_remove_card
         )
+
+    def resume_play(self):
+        self.selecting_set = False
+        for (x,y) in self.selected:
+            self.board.deselect_card(x,y)
+        self.selected.clear()
+        self.board.unlabel_cards()
+
+    def handle_remove_card(self, card, x, y):
+        log("Removing card...")
+        if (x,y) in self.layout:
+            del self.layout[(x,y)]
+        if (x,y) in self.selected:
+            del self.selected[(x,y)]
+        self.board.undraw_card(x,y)
 
     def handle_select(self, card, x, y):
         self.selected[(x, y)] = card
@@ -363,23 +383,25 @@ class LocalController:
             del self.selected[(x, y)]
         self.board.deselect_card(x, y)
 
-
     def handle_keypress(self, key):
         self.board.display_message("Key %s pressed!" % key)
-        if key == ' ':
-            if not self.selecting_set:
-                self.host.yell_set()
-            else:
+
+        if self.selecting_set:
+            if key in self.keymap:
+                x, y = self.keymap[key]
+                if (x, y) not in self.layout:
+                    log_warn("(%d, %d) not in self.layout", x, y)
+                    return
+                if (x, y) not in self.selected:
+                    self.host.select_card(self.layout[(x, y)], x, y)
+                else:
+                    self.host.deselect_card(self.layout[(x, y)], x, y)
+            elif key == ' ':
                 self.host.check_set()
-        elif self.selecting_set and key in self.keymap:
-            x, y = self.keymap[key]
-            if (x, y) not in self.layout:
-                log_warn("(%d, %d) not in self.layout", x, y)
-                return
-            if (x, y) not in self.selected:
-                self.host.select_card(self.layout[(x, y)], x, y)
-            else:
-                self.host.deselect_card(self.layout[(x, y)], x, y)
+        elif key == ' ':
+            self.host.yell_set()
+        elif key == '\n':
+            self.host.request_more()
 
     def handle_place(self, card, x, y):
         log("Placing card %s at (%d, %d)", card, x, y)
@@ -387,12 +409,13 @@ class LocalController:
         self.layout[(x,y)] = card
         self.board.draw_card(card, x, y)
 
-    def handle_yell_set(self):
+    def handle_set_yelled(self):
         self.selecting_set = True
         self.board.display_message("Found a set? Select it then!")
         for y, row in enumerate(self.KEYS):
             for x, key in enumerate(row):
-                self.board.label_card(x, y, key.upper())
+                if (x, y) in self.layout:
+                    self.board.label_card(x, y, key.upper())
 
     def control_loop(self, stdscr):
         keypress_thread = Thread(target=key_monitor,

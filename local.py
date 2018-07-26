@@ -37,7 +37,11 @@ class LocalSession:
 
     def yell_set(self, client_id):
         log("Yelling SET!")
-        self.ctl_queue.enqueue("yell_set")
+        self.ctl_queue.enqueue("set_yelled")
+
+    def resume_play(self):
+        log("Resuming...")
+        self.ctl_queue.enqueue("resume")
 
 class LocalHost:
 
@@ -52,12 +56,15 @@ class LocalHost:
 
     def select_card(self, card, x, y):
         self.game.select_card(card, x, y)
-       
+
     def deselect_card(self, card, x, y):
         self.game.deselect_card(card, x, y)
 
     def check_set(self):
         self.game.check_set()
+
+    def request_more(self):
+        self.game.place_three()
 
 def run_local(stdscr):
     gui.Color.init()

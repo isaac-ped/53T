@@ -34,11 +34,12 @@ class Game:
 
     def __init__(self, session):
         self.deck = Deck()
+        #self.deck.shuffle()
         self.layout = dict()
         self.selected = dict()
 
         self.session = session
-    
+
     @classmethod
     def iterxy(cls):
         for y in range(cls.BOARD_SHAPE[1]):
@@ -88,6 +89,23 @@ class Game:
         self.session.select_card(card, x, y)
         self.selected[(x,y)] = card
 
+    def check_set(self):
+        if len(self.selected) == 3 and is_set(*self.selected.values()):
+            for (x,y), card in self.selected.items():
+                self.remove_card(card, x, y)
+            self.selected.clear()
+            self.fill_board()
+            self.reorganize()
+        else:
+            log("%d cards selected : not a set", len(self.selected))
+            self.selected.clear()
+
+        self.session.resume_play()
+
+    def place_three(self):
+        for _ in range(3):
+            self.place_next()
+
     def deselect_card(self, card, x, y):
         if not self.valid_card(card, x, y):
             log_warn("Cannot deselect card")
@@ -135,7 +153,6 @@ class Game:
                 continue
             else:
                 log("Reorganizing card %d", i)
-                self.session.remove_card(c, x, y)
-                x, y = self.next_spot()
-                self.place(c, x, y)
+                self.remove_card(c, x, y)
+                self.place_card(c)
                 updated = True
