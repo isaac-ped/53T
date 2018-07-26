@@ -1,19 +1,9 @@
-import gui
+import ui
 import host
-from common import ControlQueue
+from control_queue import ControlQueue
 import curses
 from logger import *
 from threading import Thread
-
-class Controller:
-
-    KEYS = [
-            ['1', '2', '3', '4', '5'],
-            ['q', 'w', 'e', 'r', 't'],
-            ['a', 's', 'd', 'f', 'g'],
-            ['z', 'x', 'c', 'v', 'b'],
-        ]
-
 class LocalSession:
 
     def __init__(self, ctl_queue):
@@ -67,8 +57,8 @@ class LocalHost:
         self.game.place_three()
 
 def run_local(stdscr):
-    gui.Color.init()
-    board = gui.Board(stdscr)
+    ui.Color.init()
+    board = ui.Board(stdscr)
     board.init()
 
     queue = ControlQueue()
@@ -79,7 +69,7 @@ def run_local(stdscr):
 
     local_host = LocalHost(game)
 
-    controller = gui.LocalController(board, local_host, queue)
+    controller = ui.LocalController(board, local_host, queue)
 
     control_thread = Thread(target = controller.control_loop,
                             args = (stdscr,))
