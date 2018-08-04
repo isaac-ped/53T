@@ -27,7 +27,7 @@ class LocalSession:
 
     def yell_set(self, client_id):
         log("Yelling SET!")
-        self.ctl_queue.enqueue("set_yelled")
+        self.ctl_queue.enqueue("self_set_yelled")
 
     def resume_play(self):
         log("Resuming...")

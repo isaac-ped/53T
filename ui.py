@@ -1,3 +1,4 @@
+import time
 from logger import *
 import model
 import Queue
@@ -352,7 +353,7 @@ class LocalController:
         self.event_handlers = dict(
                 keypress = self.handle_keypress,
                 place = self.handle_place,
-                set_yelled = self.handle_set_yelled,
+                self_set_yelled = self.handle_self_set_yelled,
                 select = self.handle_select,
                 deselect = self.handle_deselect,
                 resume = self.resume_play,
@@ -408,8 +409,9 @@ class LocalController:
         card = model.Card(*card)
         self.layout[(x,y)] = card
         self.board.draw_card(card, x, y)
+        time.sleep(.1)
 
-    def handle_set_yelled(self):
+    def handle_self_set_yelled(self):
         self.selecting_set = True
         self.board.display_message("Found a set? Select it then!")
         for y, row in enumerate(self.KEYS):

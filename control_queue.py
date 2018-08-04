@@ -7,6 +7,9 @@ class ControlQueue:
     def __init__(self):
         self.queue = Queue.Queue()
 
+    def raw_enqueue(self, msg):
+        self.queue.put(msg)
+
     def enqueue(self, type, **kwargs):
         rtn = dict(type = type)
         rtn['args'] = kwargs

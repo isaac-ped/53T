@@ -1,6 +1,10 @@
 import logging
 
-logging.basicConfig(filename='53T.log',level=logging.DEBUG)
+def init_logfile(filename):
+    logging.basicConfig(filename=filename,level=logging.DEBUG)
+
+def init_stdoutlog():
+    logging.basicConfig(level=logging.DEBUG)
 
 def log(msg, *args, **kwargs):
     try:

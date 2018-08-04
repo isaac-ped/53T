@@ -11,18 +11,6 @@ def is_set(a, b, c):
         log("Cards are not a set: needed %s, gave %s", a.third(b), c)
         return False
 
-class Client:
-
-    def __init__(self):
-        self.selected = dict()
-
-    def is_set_selected(self):
-        log("%d cards selected", len(self.selected))
-        return len(self.selected == 3) and is_set(*self.selected.values())
-
-class Session:
-    pass
-
 class Game:
 
     BOARD_SHAPE = (3, 4)
@@ -30,11 +18,11 @@ class Game:
     MAX_CARDS = 18
     MAX_NORMAL = BOARD_SHAPE[0] * BOARD_SHAPE[1]
 
-    DELAY=.01
+    DELAY=.1
 
     def __init__(self, session):
         self.deck = Deck()
-        #self.deck.shuffle()
+        self.deck.shuffle()
         self.layout = dict()
         self.selected = dict()
 
@@ -126,6 +114,7 @@ class Game:
             return
         self.layout[(x,y)] = card
         self.session.place_card(card, x, y)
+        #time.sleep(self.DELAY)
 
     def place_next(self):
         if len(self.layout) == self.MAX_CARDS:
@@ -137,7 +126,6 @@ class Game:
     def fill_board(self):
         while self.cards_remain() and len(self.layout) < self.MAX_NORMAL:
             self.place_next()
-            time.sleep(self.DELAY)
 
     def iloc(self, i):
         for idx, (x,y) in enumerate(self.iterxy()):
