@@ -354,6 +354,7 @@ class LocalController:
                 keypress = self.handle_keypress,
                 place = self.handle_place,
                 self_set_yelled = self.handle_self_set_yelled,
+                show_message = self.handle_show_message,
                 select = self.handle_select,
                 deselect = self.handle_deselect,
                 resume = self.resume_play,
@@ -410,6 +411,9 @@ class LocalController:
         self.layout[(x,y)] = card
         self.board.draw_card(card, x, y)
         time.sleep(.1)
+
+    def handle_show_message(self, message):
+        self.board.display_message(message)
 
     def handle_self_set_yelled(self):
         self.selecting_set = True

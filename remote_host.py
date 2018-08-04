@@ -1,6 +1,7 @@
 import host
 import socket
 import json
+import select
 from control_queue import ControlQueue
 from logger import *
 from model import *
@@ -53,8 +54,7 @@ class HostReceiver:
         self.game.yell_set(sock)
 
     def control_loop(self, session):
-        while True:
-            msg, sock = session.receive()
+        for msg, sock in session.message_generator():
 
             if 'type' not in msg:
                 log_warn("No 'type' in msg: %s", msg)
@@ -78,20 +78,34 @@ class RemoteSession:
         serversocket = socket.socket(
                 socket.AF_INET, socket.SOCK_STREAM)
         serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        serversocket.bind(('127.0.0.1', port))
+        serversocket.bind(('10.0.0.213', port))
         log("Bound to %d", port)
         #become a server socket
         serversocket.listen(10)
 
 
         log("Listening...")
-        conn, _ = serversocket.accept()
+        conn1, _ = serversocket.accept()
+        log("Accepted connection!")
+        conn2, _ = serversocket.accept()
         log("Accepted connection!")
 
-        self.clients = [RemoteClient(conn)]
+        self.clients = [RemoteClient(conn1), RemoteClient(conn2)]
 
-    def receive(self):
-        return json.loads(self.clients[0].recv()), self.clients[0]
+    def message_generator(self):
+
+        while True:
+            sock, _, _= select.select([c.sock for c in self.clients], [], [])
+            print(type(sock[0]), type(self.clients[0].sock))
+            client = [c for c in self.clients if c.sock == sock[0]][0]
+
+            msg = ''
+            while not '~' in msg:
+                msg += client.recv()
+
+            messages = msg.split('~')
+            for msg in messages[:-1]:
+                yield json.loads(msg), client
 
     def send(self, type, *args, **kwargs):
         for client in self.clients:
@@ -109,8 +123,11 @@ class RemoteSession:
     def place_card(self, card, x, y):
         self.send('place', card=card.properties, x=x, y=y)
 
-    def yell_set(self, client_id):
-        self.send('self_set_yelled')
+    def yell_set(self, client):
+        client.send('self_set_yelled')
+        for client2 in self.clients:
+            if client2 != client:
+                client2.send('show_message', message='Other player yelled set!')
 
     def resume_play(self):
         self.send('resume')

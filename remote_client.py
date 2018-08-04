@@ -12,7 +12,7 @@ class RemoteHost:
 
     def __init__(self, port, queue):
         self.sock = socket.socket()
-        self.sock.connect(('127.0.0.1', port))
+        self.sock.connect(('10.0.0.213', port))
         self.queue = queue
 
     def receive_loop(self):
@@ -31,7 +31,7 @@ class RemoteHost:
     def send(self, type, *args, **kwargs):
         rtn = dict(type=type)
         rtn['args'] = kwargs
-        self.sock.send(json.dumps(rtn))
+        self.sock.send(json.dumps(rtn) + '~')
         log("Sent message %s" % rtn)
 
     def select_card(self, card, x, y):
