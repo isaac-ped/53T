@@ -2,6 +2,7 @@ from model import Card, Deck
 from logger import *
 import itertools
 import time
+import copy
 
 def is_set(a, b, c):
     if a.third(b) == c:
@@ -87,7 +88,8 @@ class Game:
         if len(self.selected) == 3 and is_set(*self.selected.values()):
             self.scores[client.id] += 1
             self.session.send_scores(self.scores)
-            for (x,y), card in self.selected.items():
+            selected = copy.deepcopy(self.selected)
+            for (x,y), card in selected.items():
                 self.remove_card(card, x, y)
             self.selected.clear()
             self.fill_board()

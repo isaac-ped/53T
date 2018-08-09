@@ -1,11 +1,15 @@
-import Queue
+try:
+    from queue import Queue
+except:
+    # Python 3 changed capitalization O_o
+    from Queue import Queue
 from logger import *
 import json
 
 class ControlQueue:
 
     def __init__(self):
-        self.queue = Queue.Queue()
+        self.queue = Queue()
 
     def raw_enqueue(self, msg):
         self.queue.put(msg)

@@ -1,7 +1,7 @@
 import time
+import traceback
 from logger import *
 import model
-import Queue
 import curses
 import re
 from threading import Thread
@@ -102,7 +102,11 @@ class CardDrawing:
 
         self.win = None
 
-        text = self.shade(shape, shading)
+        try:
+            text = self.shade(shape, shading)
+        except Exception as e: # FIXME: o.O
+            text = self.shade(shape, '#')
+
         self.text = center_lines(concat_lines([text] * number), self.WIDTH)
 
     @staticmethod
@@ -450,6 +454,7 @@ class LocalController:
                 except Exception as e:
                     log_warn("Exception %s encountered handling event %s",
                              e, msg)
+                    log_warn(traceback.format_exc())
                     raise
             else:
                 log_warn("Received unknown message type: %s", msg['type'])

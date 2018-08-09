@@ -94,6 +94,10 @@ def run_client(stdscr):
 
 
 if __name__ == '__main__':
+    if (sys.version_info > (3, 0)):
+        print("53T Doesn't look as good with python 3 as python 2 because I can't figure out unicode!")
+        print("Proceed at your own risk!")
+        time.sleep(5)
     if len(sys.argv) > 1:
         ip = sys.argv[1]
     curses.wrapper(run_client)
