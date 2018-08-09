@@ -27,6 +27,8 @@ class Game:
         self.selected = dict()
 
         self.session = session
+        self.scores = { client.id : 0 for client in self.session.clients }
+        self.current_yeller = None
 
     @classmethod
     def iterxy(cls):
@@ -38,8 +40,12 @@ class Game:
         for ex_x in range(3):
             yield cls.BOARD_SHAPE[0] + 1, ex_x
 
-    def yell_set(self, client_id):
-        self.session.yell_set(client_id)
+    def yell_set(self, client):
+        if self.current_yeller is None:
+            self.session.yell_set(client)
+            self.current_yeller = client
+        elif self.current_yeller != client:
+            self.session.too_late(client)
 
     def cards_remain(self):
         return self.deck.cards_remaining() > 0
@@ -77,8 +83,10 @@ class Game:
         self.session.select_card(card, x, y)
         self.selected[(x,y)] = card
 
-    def check_set(self):
+    def check_set(self, client):
         if len(self.selected) == 3 and is_set(*self.selected.values()):
+            self.scores[client.id] += 1
+            self.session.send_scores(self.scores)
             for (x,y), card in self.selected.items():
                 self.remove_card(card, x, y)
             self.selected.clear()
@@ -86,8 +94,10 @@ class Game:
             self.reorganize()
         else:
             log("%d cards selected : not a set", len(self.selected))
+            self.scores[client.id] -= 1
+            self.session.send_scores(self.scores)
             self.selected.clear()
-
+        self.current_yeller = None
         self.session.resume_play()
 
     def place_three(self):

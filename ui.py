@@ -323,7 +323,10 @@ class Board:
 def key_monitor(stdscr, queue):
     while True:
         ch = stdscr.getch()
-        queue.enqueue('keypress', key = chr(ch))
+        try:
+            queue.enqueue('keypress', key = chr(ch))
+        except:
+            queue.enqueue('show_message', message="Don't press things you're not supposed to")
 
 
 class LocalController:
@@ -358,8 +361,15 @@ class LocalController:
                 select = self.handle_select,
                 deselect = self.handle_deselect,
                 resume = self.resume_play,
-                remove = self.handle_remove_card
+                remove = self.handle_remove_card,
+                score_update = self.handle_score_update
         )
+
+    def handle_score_update(self, scores):
+        msg = []
+        for label, score in scores.items():
+            msg.append(' {}: {} '.format(label, score))
+        self.board.display_message('||'.join(msg))
 
     def resume_play(self):
         self.selecting_set = False
@@ -386,7 +396,6 @@ class LocalController:
         self.board.deselect_card(x, y)
 
     def handle_keypress(self, key):
-        self.board.display_message("Key %s pressed!" % key)
 
         if self.selecting_set:
             if key in self.keymap:

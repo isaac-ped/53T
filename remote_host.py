@@ -1,3 +1,4 @@
+import sys
 import host
 import socket
 import json
@@ -10,8 +11,9 @@ init_stdoutlog()
 
 class RemoteClient:
 
-    def __init__(self, sock):
+    def __init__(self, sock, id):
         self.sock = sock
+        self.id = id
 
     def send(self, type, **kwargs):
         rtn = dict(type = type)
@@ -45,7 +47,7 @@ class HostReceiver:
         self.game.deselect_card(Card(*card), x, y)
 
     def handle_check(self, sock):
-        self.game.check_set()
+        self.game.check_set(sock)
 
     def handle_request_more(self, sock):
         self.game.place_three()
@@ -72,26 +74,26 @@ class HostReceiver:
 
 class RemoteSession:
 
-    def __init__(self, port):
+    NUM_PLAYERS = 2
+
+    def __init__(self, ip, port):
         self.port = port
         #create an INET, STREAMing socket
         serversocket = socket.socket(
                 socket.AF_INET, socket.SOCK_STREAM)
         serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        serversocket.bind(('10.0.0.213', port))
+        serversocket.bind((ip, port))
         log("Bound to %d", port)
         #become a server socket
         serversocket.listen(10)
 
-
-        log("Listening...")
-        conn1, _ = serversocket.accept()
-        log("Accepted connection!")
-        conn2, _ = serversocket.accept()
-        log("Accepted connection!")
-
-        self.clients = [RemoteClient(conn1), RemoteClient(conn2)]
-
+        self.clients = []
+        for id in range(self.NUM_PLAYERS):
+            log("Listening...")
+            conn, _ = serversocket.accept()
+            log("Accepted connection!")
+            self.clients.append(RemoteClient(conn, id + 1))
+    
     def message_generator(self):
 
         while True:
@@ -129,14 +131,27 @@ class RemoteSession:
             if client2 != client:
                 client2.send('show_message', message='Other player yelled set!')
 
+
+    def send_scores(self, scores):
+        for client in self.clients:
+            cscores = { 'p{}'.format(id) if id != client.id else 'you': score for id, score in scores.items()}
+            client.send('score_update', scores=cscores)
+
+    def too_late(self, client):
+        client.send('show_message', message='Too late! Already been called!')
+        for client2 in self.clients:
+            if client2 != client:
+                client2.send('show_message', message='Player {0.id} tryed to yell SET'.format(client))
+
     def resume_play(self):
         self.send('resume')
 
+ip='127.0.0.1'
 
-def run_host():
+def run_host(ip=ip):
 
     log("Here!")
-    session = RemoteSession(9999)
+    session = RemoteSession(ip, 9999)
     game = host.Game(session)
 
     receiver = HostReceiver(game)
@@ -144,4 +159,4 @@ def run_host():
     receiver.control_loop(session)
 
 if __name__ == '__main__':
-    run_host()
+    run_host(sys.argv[1])

@@ -1,3 +1,5 @@
+import sys
+import time
 import json
 import curses
 import socket
@@ -10,16 +12,30 @@ init_logfile("53T_client.log")
 
 class RemoteHost:
 
-    def __init__(self, port, queue):
-        self.sock = socket.socket()
-        self.sock.connect(('10.0.0.213', port))
+    def __init__(self, ip, port, queue):
+        connected = False
+        while not connected:
+            try:
+                log("Attmepting to connect")
+                self.sock = socket.socket()
+                self.sock.connect((ip, port))
+                log("Connected")
+                connected = True
+            except socket.error:
+                self.sock.close()
+                log("...")
+                time.sleep(1)
         self.queue = queue
 
     def receive_loop(self):
         msg_buffer = ''
         while True:
             while not '~' in msg_buffer:
-                msg_buffer += self.sock.recv(1024)
+                try:
+                    msg_buffer += self.sock.recv(1024)
+                except socket.error as e:
+                    log("Got error reading socket: %s" % e)
+
             log("Received %s", msg_buffer)
 
             messages = msg_buffer.split('~')
@@ -52,14 +68,17 @@ class RemoteHost:
     def start(self):
         self.send('start')
 
+ip = '127.0.0.1'
+
 def run_client(stdscr):
-    ui.Color.init()
-    board = ui.Board(stdscr)
-    board.init()
 
     queue = ControlQueue()
 
-    remote_host = RemoteHost(9999, queue)
+    remote_host = RemoteHost(ip, 9999, queue)
+
+    ui.Color.init()
+    board = ui.Board(stdscr)
+    board.init()
 
     controller = ui.LocalController(board, remote_host, queue)
 
@@ -75,4 +94,6 @@ def run_client(stdscr):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        ip = sys.argv[1]
     curses.wrapper(run_client)
