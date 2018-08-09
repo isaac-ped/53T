@@ -4,10 +4,19 @@ from control_queue import ControlQueue
 import curses
 from logger import *
 from threading import Thread
+
+init_logfile("53T_local.log")
+
+class LocalClient:
+
+    def __init__(self, id):
+        self.id = id
+
 class LocalSession:
 
     def __init__(self, ctl_queue):
         self.ctl_queue = ctl_queue
+        self.clients = [LocalClient(1)]
 
     def remove_card(self, card, x, y):
         log("Locally removing card at %d, %d", x, y)
@@ -33,6 +42,9 @@ class LocalSession:
         log("Resuming...")
         self.ctl_queue.enqueue("resume")
 
+    def send_scores(self, scores):
+        self.ctl_queue.enqueue('score_update', scores=scores)
+
 class LocalHost:
 
     def __init__(self, game):
@@ -51,7 +63,7 @@ class LocalHost:
         self.game.deselect_card(card, x, y)
 
     def check_set(self):
-        self.game.check_set()
+        self.game.check_set(LocalClient(1))
 
     def request_more(self):
         self.game.place_three()
