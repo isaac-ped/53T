@@ -9,6 +9,6 @@
 * Solitaire: python local.py
 * Multiplayer:
 ```
-python remote_host.py <ip>
+python remote_host.py <ip> [# players]
 python remote_client.py <ip>
 ```

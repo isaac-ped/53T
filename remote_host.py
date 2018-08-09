@@ -76,7 +76,7 @@ class RemoteSession:
 
     NUM_PLAYERS = 2
 
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, num_players=NUM_PLAYERS):
         self.port = port
         #create an INET, STREAMing socket
         serversocket = socket.socket(
@@ -88,12 +88,12 @@ class RemoteSession:
         serversocket.listen(10)
 
         self.clients = []
-        for id in range(self.NUM_PLAYERS):
+        for id in range(num_players):
             log("Listening...")
             conn, _ = serversocket.accept()
             log("Accepted connection!")
             self.clients.append(RemoteClient(conn, id + 1))
-    
+
     def message_generator(self):
 
         while True:
@@ -148,10 +148,10 @@ class RemoteSession:
 
 ip='127.0.0.1'
 
-def run_host(ip=ip):
+def run_host(ip=ip, num_players=2):
 
     log("Here!")
-    session = RemoteSession(ip, 9999)
+    session = RemoteSession(ip, 9999, num_players)
     game = host.Game(session)
 
     receiver = HostReceiver(game)
@@ -159,4 +159,10 @@ def run_host(ip=ip):
     receiver.control_loop(session)
 
 if __name__ == '__main__':
-    run_host(sys.argv[1])
+    if len(sys.argv) == 1:
+        print("Usage: python %s <ip> <# players>" % sys.argv[0])
+        exit(1)
+    if len(sys.argv) > 2:
+        run_host(sys.argv[1], int(sys.argv[2]))
+    else:
+        run_host(sys.argv[1])
