@@ -1,3 +1,4 @@
+import signal
 import sys
 import time
 import ui
@@ -8,6 +9,12 @@ from logger import *
 from threading import Thread
 
 init_logfile("53T_local.log")
+
+def interrupt_handler(signum, frame):
+    log("INTERRUPTED!")
+    exit(-1)
+
+signal.signal(signal.SIGINT, interrupt_handler)
 
 class LocalClient:
 
@@ -89,6 +96,7 @@ def run_local(stdscr):
                             args = (stdscr,))
     control_thread.start()
 
+    signal.signal(signal.SIGINT, interrupt_handler)
     local_host.start()
 
     control_thread.join()

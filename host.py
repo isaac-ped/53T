@@ -21,6 +21,8 @@ class Game:
 
     DELAY=.1
 
+    SET_TIMEOUT = 5
+
     def __init__(self, session):
         self.deck = Deck()
         self.deck.shuffle()
@@ -44,9 +46,27 @@ class Game:
     def yell_set(self, client):
         if self.current_yeller is None:
             self.session.yell_set(client)
-            self.current_yeller = client
-        elif self.current_yeller != client:
-            self.session.too_late(client)
+            self.current_yeller = (client, time.time() + self.SET_TIMEOUT)
+        else:
+            yeller, timeout = self.current_yeller
+            if self.current_yeller != client:
+                if time.time() > timeout:
+                    self.deselect_all()
+                    self.scores[yeller.id] -= 1
+                    self.session.send_scores(self.scores)
+                    self.session.yell_set(client)
+                    client.send('show_message', message = "You STOLE their set!")
+                    yeller.send('show_message', message = "Your set was STOLEN!")
+                    self.current_yeller = (client, time.time() + self.SET_TIMEOUT)
+                else:
+                    self.session.too_late(client, int(timeout - time.time()))
+
+    def deselect_all(self):
+        selected = copy.deepcopy(self.selected)
+        for (x,y), card in selected.items():
+            self.deselect_card(card, x, y)
+        self.selected.clear()
+    
 
     def cards_remain(self):
         return self.deck.cards_remaining() > 0

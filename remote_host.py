@@ -97,7 +97,9 @@ class RemoteSession:
     def message_generator(self):
 
         while True:
-            sock, _, _= select.select([c.sock for c in self.clients], [], [])
+            sock, _, errsock= select.select([c.sock for c in self.clients], [], [c.sock for c in self.clients])
+            if len(errsock) > 0:
+                exit(-1)
             print(type(sock[0]), type(self.clients[0].sock))
             client = [c for c in self.clients if c.sock == sock[0]][0]
 
@@ -129,7 +131,7 @@ class RemoteSession:
         client.send('self_set_yelled')
         for client2 in self.clients:
             if client2 != client:
-                client2.send('show_message', message='Other player yelled set!')
+                client2.send("other_set_yelled")
 
 
     def send_scores(self, scores):
@@ -137,8 +139,8 @@ class RemoteSession:
             cscores = { 'p{}'.format(id) if id != client.id else 'you': score for id, score in scores.items()}
             client.send('score_update', scores=cscores)
 
-    def too_late(self, client):
-        client.send('show_message', message='Too late! Already been called!')
+    def too_late(self, client, timeout):
+        client.send('show_message', message='Too late! (Wait for {} seconds)'.format(timeout))
         for client2 in self.clients:
             if client2 != client:
                 client2.send('show_message', message='Player {0.id} tryed to yell SET'.format(client))

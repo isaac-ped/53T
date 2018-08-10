@@ -365,9 +365,12 @@ def key_monitor(stdscr, queue):
     while True:
         ch = stdscr.getch()
 
+
         if Board.is_resized():
             queue.enqueue('resize')
-
+        if ch in (curses.KEY_BACKSPACE, ord('\x7f'), ord('\b'), '\x08'):
+            queue.enqueue('quit')
+            return
         if ch == curses.KEY_RESIZE:
             queue.enqueue('resize')
         elif ch == curses.KEY_MOUSE:
@@ -404,11 +407,13 @@ class LocalController:
                 self.keymap[key] = (x, y)
 
         self.event_handlers = dict(
+                quit = self.handle_quit,
                 resize = self.handle_resize,
                 keypress = self.handle_keypress,
                 mousepress = self.handle_mousepress,
                 place = self.handle_place,
                 self_set_yelled = self.handle_self_set_yelled,
+                other_set_yelled = self.handle_other_set_yelled,
                 show_message = self.handle_show_message,
                 select = self.handle_select,
                 deselect = self.handle_deselect,
@@ -416,6 +421,10 @@ class LocalController:
                 remove = self.handle_remove_card,
                 score_update = self.handle_score_update
         )
+
+    def handle_quit(self):
+        log("Exiting...")
+        exit(-1)
 
     def handle_resize(self):
         self.board.refresh()
@@ -466,8 +475,6 @@ class LocalController:
         else:
             self.board.display_message("Must call SET with SPACEBAR first")
 
-
-
     def handle_keypress(self, key):
 
         if self.selecting_set:
@@ -497,6 +504,12 @@ class LocalController:
     def handle_show_message(self, message):
         self.board.display_message(message)
 
+    def handle_other_set_yelled(self):
+        self.selecting_set = False
+        self.board.display_message("Someone else yelled set!")
+        self.selected.clear()
+        self.board.unlabel_cards()
+
     def handle_self_set_yelled(self):
         self.selecting_set = True
         self.board.display_message("Found a set? Select it then!")
@@ -509,6 +522,7 @@ class LocalController:
         keypress_thread = Thread(target=key_monitor,
                                  args=(stdscr, self.queue))
         keypress_thread.start()
+        self.board.display_message("Press SPACE to call set | BACKSPACE to quit")
 
         while True:
             msg = self.queue.dequeue()
