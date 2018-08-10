@@ -101,7 +101,7 @@ class CardDrawing:
                 color, shape, number, shading
 
         self.win = None
-
+        self.y, self.x = None, None
         try:
             text = self.shade(shape, shading)
         except Exception as e: # FIXME: o.O
@@ -119,9 +119,14 @@ class CardDrawing:
                 lambda x: x.group(0).replace(' ', fill).replace('_', fill),
                 text)
 
+    def redraw(self):
+        self.undraw('-', 1)
+        self.draw(self.y, self.x)
+
+
     def draw(self, y, x):
         log("Drawing card at %d, %d", y, x)
-
+        self.y, self.x = y, x
         if self.win is None:
             self.win = curses.newwin(self.HEIGHT, self.WIDTH + 2, y, x)
         self.win.clear()
@@ -143,7 +148,7 @@ class CardDrawing:
         self.win.addstr(0, 0, self.text, col)
         self.win.refresh()
 
-    def undraw(self, bgchar, bgcol):
+    def undraw(self, bgchar, bgcol=None):
         if self.win is None:
             log_warn("Cannot undraw undrawn card")
             return
@@ -240,6 +245,8 @@ class Board:
 
     def __init__(self, stdscr):
         self.stdscr = stdscr
+        stdscr.keypad(True)
+        curses.mousemask(1)
 
         self.bgcol = Color(self.FG, self.BG)
         self.msgcol = Color(self.MSGFG, self.MSGBG, name="message")
@@ -256,6 +263,26 @@ class Board:
         self.msgwin = curses.newwin(3, 75, 1, 2)
         self.msgwin.bkgd(self.msgcol.normal)
         self.msgwin.refresh()
+        self.resize()
+
+
+    @classmethod
+    def resize(self):
+        curses.resizeterm((self.N_ROWS)* (self.ROW_HEIGHT + 2),
+                          (self.N_COLS + 2) * (self.ROW_WIDTH + 5))
+
+    @classmethod
+    def is_resized(self):
+        return curses.is_term_resized((self.N_ROWS)* (self.ROW_HEIGHT + 2),
+                          (self.N_COLS + 2) * (self.ROW_WIDTH + 5))
+
+
+    def refresh(self):
+        self.resize()
+        self.stdscr.refresh()
+        self.msgwin.refresh()
+        for card in self.cards.values():
+            card.redraw()
 
     def init(self):
         self.stdscr.bkgd('-', self.bgcol.normal)
@@ -283,6 +310,16 @@ class Board:
     def card_coords(cls, x, y):
         return (y * cls.ROW_HEIGHT + cls.OFFSET_Y,
                 x * cls.ROW_WIDTH + cls.OFFSET_X)
+
+    @classmethod
+    def containing_card(cls, x, y):
+        for c_x in range(cls.N_COLS + 2):
+            for c_y in range(cls.N_ROWS):
+                start_y, start_x = cls.card_coords(c_x, c_y)
+                if x > start_x and x < start_x + cls.ROW_WIDTH and \
+                        y > start_y and y < start_y + cls.ROW_HEIGHT:
+                    return c_x, c_y
+        return None, None
 
     def draw_card(self, card, x, y):
         # TODO: This try block is... annoying...
@@ -327,11 +364,20 @@ class Board:
 def key_monitor(stdscr, queue):
     while True:
         ch = stdscr.getch()
-        try:
-            queue.enqueue('keypress', key = chr(ch))
-        except:
-            queue.enqueue('show_message', message="Don't press things you're not supposed to")
 
+        if Board.is_resized():
+            queue.enqueue('resize')
+
+        if ch == curses.KEY_RESIZE:
+            queue.enqueue('resize')
+        elif ch == curses.KEY_MOUSE:
+            _, x, y, _, _ = curses.getmouse()
+            queue.enqueue('mousepress', x = x, y = y)
+        else:
+            try:
+                queue.enqueue('keypress', key = chr(ch))
+            except:
+                queue.enqueue('show_message', message="Don't press things you're not supposed to")
 
 class LocalController:
 
@@ -358,7 +404,9 @@ class LocalController:
                 self.keymap[key] = (x, y)
 
         self.event_handlers = dict(
+                resize = self.handle_resize,
                 keypress = self.handle_keypress,
+                mousepress = self.handle_mousepress,
                 place = self.handle_place,
                 self_set_yelled = self.handle_self_set_yelled,
                 show_message = self.handle_show_message,
@@ -368,6 +416,9 @@ class LocalController:
                 remove = self.handle_remove_card,
                 score_update = self.handle_score_update
         )
+
+    def handle_resize(self):
+        self.board.refresh()
 
     def handle_score_update(self, scores):
         msg = []
@@ -398,6 +449,24 @@ class LocalController:
         if (x,y) in self.selected:
             del self.selected[(x, y)]
         self.board.deselect_card(x, y)
+
+    def handle_mousepress(self, x, y):
+
+        if self.selecting_set:
+            cx, cy = self.board.containing_card(x, y)
+            if cx is None:
+                return
+            if (cx, cy) not in self.layout:
+                log_warn("Non-present (%d,%d) card clicked", cx, cy)
+                return
+            if (cx, cy) not in self.selected:
+                self.host.select_card(self.layout[(cx, cy)], cx, cy)
+            else:
+                self.host.deselect_card(self.layout[(cx, cy)], cx, cy)
+        else:
+            self.board.display_message("Must call SET with SPACEBAR first")
+
+
 
     def handle_keypress(self, key):
 
@@ -443,7 +512,6 @@ class LocalController:
 
         while True:
             msg = self.queue.dequeue()
-
             if 'type' not in msg:
                 log_warn("No 'type' in msg: %s", msg)
                 continue
