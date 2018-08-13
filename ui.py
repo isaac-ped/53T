@@ -273,8 +273,11 @@ class Board:
 
     @classmethod
     def is_resized(self):
-        return curses.is_term_resized((self.N_ROWS)* (self.ROW_HEIGHT + 2),
-                          (self.N_COLS + 2) * (self.ROW_WIDTH + 5))
+        if curses.is_term_resized((self.N_ROWS)* (self.ROW_HEIGHT + 2),
+                (self.N_COLS + 2) * (self.ROW_WIDTH + 5)):
+            log("WINDOW WAS RESIZED!")
+            return True
+        return False
 
 
     def refresh(self):
@@ -365,22 +368,21 @@ def key_monitor(stdscr, queue):
     while True:
         ch = stdscr.getch()
 
-
         if Board.is_resized():
-            queue.enqueue('resize')
+            queue.enqueue_msg('resize')
         if ch in (curses.KEY_BACKSPACE, ord('\x7f'), ord('\b'), '\x08'):
-            queue.enqueue('quit')
+            queue.enqueue_msg('quit')
             return
         if ch == curses.KEY_RESIZE:
-            queue.enqueue('resize')
+            queue.enqueue_msg('resize')
         elif ch == curses.KEY_MOUSE:
             _, x, y, _, _ = curses.getmouse()
-            queue.enqueue('mousepress', x = x, y = y)
+            queue.enqueue_msg('mousepress', x = x, y = y)
         else:
             try:
-                queue.enqueue('keypress', key = chr(ch))
+                queue.enqueue_msg('keypress', key = chr(ch))
             except:
-                queue.enqueue('show_message', message="Don't press things you're not supposed to")
+                queue.enqueue_msg('show_message', message="Don't press things you're not supposed to")
 
 CONTROL_HANDLERS = {}
 
@@ -487,9 +489,9 @@ class LocalController:
                     log_warn("(%d, %d) not in self.layout", x, y)
                     return
                 if (x, y) not in self.selected:
-                    self.host.select_card(self.layout[(x, y)], x, y)
+                    self.host.select_card(self.layout[(x, y)].properties, x, y)
                 else:
-                    self.host.deselect_card(self.layout[(x, y)], x, y)
+                    self.host.deselect_card(self.layout[(x, y)].properties, x, y)
             elif key == ' ':
                 self.host.check_set()
         elif key == ' ':
@@ -519,7 +521,7 @@ class LocalController:
     @handler('self_set_yelled')
     def handle_self_set_yelled(self):
         self.selecting_set = True
-        self.board.display_message("Found a set? Select it then!")
+        self.board.display_message("Found a set? Select it!")
         for y, row in enumerate(self.KEYS):
             for x, key in enumerate(row):
                 if (x, y) in self.layout:
@@ -533,13 +535,15 @@ class LocalController:
 
         while True:
             msg = self.queue.dequeue()
+            log("UI Received message %s", msg)
             if 'type' not in msg:
                 log_warn("No 'type' in msg: %s", msg)
                 continue
 
             if msg['type'] in CONTROL_HANDLERS:
                 try:
-                    CONTROL_HANDLERS[msg['type']](self, **msg['args'])
+                    log("Handling %s", msg['type'])
+                    CONTROL_HANDLERS[msg['type']](self, *msg['args'], **msg['kwargs'])
                 except Exception as e:
                     log_warn("Exception %s encountered handling event %s",
                              e, msg)

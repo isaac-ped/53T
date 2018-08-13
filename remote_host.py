@@ -15,10 +15,10 @@ class RemoteClient:
         self.sock = sock
         self.id = id
 
-    def send(self, type, **kwargs):
-        rtn = dict(type = type)
-        rtn['args'] = kwargs
-        self.sock.send(json.dumps(rtn) + "~")
+    def send(self, type, *args, **kwargs):
+        rtn = dict(type = type, args=args, kwargs=kwargs)
+        rtn = json.dumps(rtn) + '~'
+        self.sock.send(rtn)
         log("Sent message %s", rtn)
 
     def recv(self):
@@ -38,6 +38,7 @@ class HostReceiver:
         )
 
     def handle_start(self, sock):
+        log("Handling start message")
         self.game.fill_board()
 
     def handle_select(self, sock, card, x, y):
@@ -64,7 +65,8 @@ class HostReceiver:
 
             if msg['type'] in self.event_handlers:
                 try:
-                    self.event_handlers[msg['type']](sock, **msg['args'])
+                    log("Receiving %s", msg['type'])
+                    self.event_handlers[msg['type']](sock, *msg['args'], **msg['kwargs'])
                 except Exception as e:
                     log_warn("Exception %s encountered handling event %s",
                             e, msg)
@@ -100,7 +102,6 @@ class RemoteSession:
             sock, _, errsock= select.select([c.sock for c in self.clients], [], [c.sock for c in self.clients])
             if len(errsock) > 0:
                 exit(-1)
-            print(type(sock[0]), type(self.clients[0].sock))
             client = [c for c in self.clients if c.sock == sock[0]][0]
 
             msg = ''

@@ -52,6 +52,7 @@ class Card:
 
     def __str__(self):
         return '< Card: ' + str(self.properties) + " >"
+            
     
     def __repr__(self):
         return str(self)
@@ -66,7 +67,7 @@ class Deck:
     ))
 
     def __init__(self):
-        self.all_cards = [Card(*p) for p in self.ALL_PARAMS]
+        self.all_cards = [Card(*p) for p in self.ALL_PARAMS][::9]
 
         self.deck = self.all_cards[:]
         log("Deck is %s", self.deck)

@@ -11,20 +11,19 @@ class ControlQueue:
     def __init__(self):
         self.queue = Queue()
 
-    def raw_enqueue(self, msg):
-        self.queue.put(msg)
+    def enqueue_obj(self, obj):
+        log("Putting object %s in queue", obj)
+        self.queue.put(obj)
 
-    def enqueue(self, type, **kwargs):
-        rtn = dict(type = type)
-        rtn['args'] = kwargs
-        self.queue.put(json.dumps(rtn))
-        log("Enqueueing message %s", rtn)
+    def enqueue_msg(self, type, *args, **kwargs):
+        rtn = dict(type = type, args=args, kwargs=kwargs)
+        log("Putting message %s in queue", rtn)
+        self.queue.put(rtn)
 
     def dequeue(self):
         log("Attempting dequeue")
-        msg_s = self.queue.get(True)
-        msg = json.loads(msg_s)
-        log("Dequeueing message %s", msg_s)
+        msg = self.queue.get(True)
+        log("Dequeueing message %s", msg)
         return msg
 
 
