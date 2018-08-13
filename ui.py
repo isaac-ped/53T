@@ -382,6 +382,14 @@ def key_monitor(stdscr, queue):
             except:
                 queue.enqueue('show_message', message="Don't press things you're not supposed to")
 
+CONTROL_HANDLERS = {}
+
+def handler(label):
+    def inner(fn):
+        CONTROL_HANDLERS[label] = fn
+        return fn
+    return inner
+
 class LocalController:
 
     KEYS = [
@@ -390,6 +398,7 @@ class LocalController:
             ['a', 's', 'd', 'f', 'g'],
             ['z', 'x', 'c', 'v', 'b'],
         ]
+
 
 
     def __init__(self, board, host, queue):
@@ -406,35 +415,24 @@ class LocalController:
             for x, key in enumerate(row):
                 self.keymap[key] = (x, y)
 
-        self.event_handlers = dict(
-                quit = self.handle_quit,
-                resize = self.handle_resize,
-                keypress = self.handle_keypress,
-                mousepress = self.handle_mousepress,
-                place = self.handle_place,
-                self_set_yelled = self.handle_self_set_yelled,
-                other_set_yelled = self.handle_other_set_yelled,
-                show_message = self.handle_show_message,
-                select = self.handle_select,
-                deselect = self.handle_deselect,
-                resume = self.resume_play,
-                remove = self.handle_remove_card,
-                score_update = self.handle_score_update
-        )
 
+    @handler('quit')
     def handle_quit(self):
         log("Exiting...")
         exit(-1)
 
+    @handler('resize')
     def handle_resize(self):
         self.board.refresh()
 
+    @handler('score_update')
     def handle_score_update(self, scores):
         msg = []
         for label, score in scores.items():
             msg.append(' {}: {} '.format(label, score))
         self.board.display_message('||'.join(msg))
 
+    @handler('resume')
     def resume_play(self):
         self.selecting_set = False
         for (x,y) in self.selected:
@@ -442,6 +440,7 @@ class LocalController:
         self.selected.clear()
         self.board.unlabel_cards()
 
+    @handler('remove')
     def handle_remove_card(self, card, x, y):
         log("Removing card...")
         if (x,y) in self.layout:
@@ -450,15 +449,18 @@ class LocalController:
             del self.selected[(x,y)]
         self.board.undraw_card(x,y)
 
+    @handler('select')
     def handle_select(self, card, x, y):
         self.selected[(x, y)] = card
         self.board.select_card(x, y)
 
+    @handler('deselect')
     def handle_deselect(self, card, x, y):
         if (x,y) in self.selected:
             del self.selected[(x, y)]
         self.board.deselect_card(x, y)
 
+    @handler('mousepress')
     def handle_mousepress(self, x, y):
 
         if self.selecting_set:
@@ -475,6 +477,7 @@ class LocalController:
         else:
             self.board.display_message("Must call SET with SPACEBAR first")
 
+    @handler('keypress')
     def handle_keypress(self, key):
 
         if self.selecting_set:
@@ -494,6 +497,7 @@ class LocalController:
         elif key == '\n':
             self.host.request_more()
 
+    @handler('place')
     def handle_place(self, card, x, y):
         log("Placing card %s at (%d, %d)", card, x, y)
         card = model.Card(*card)
@@ -501,15 +505,18 @@ class LocalController:
         self.board.draw_card(card, x, y)
         time.sleep(.1)
 
+    @handler('show_message')
     def handle_show_message(self, message):
         self.board.display_message(message)
 
+    @handler('other_set_yelled')
     def handle_other_set_yelled(self):
         self.selecting_set = False
         self.board.display_message("Someone else yelled set!")
         self.selected.clear()
         self.board.unlabel_cards()
 
+    @handler('self_set_yelled')
     def handle_self_set_yelled(self):
         self.selecting_set = True
         self.board.display_message("Found a set? Select it then!")
@@ -530,9 +537,9 @@ class LocalController:
                 log_warn("No 'type' in msg: %s", msg)
                 continue
 
-            if msg['type'] in self.event_handlers:
+            if msg['type'] in CONTROL_HANDLERS:
                 try:
-                    self.event_handlers[msg['type']](**msg['args'])
+                    CONTROL_HANDLERS[msg['type']](self, **msg['args'])
                 except Exception as e:
                     log_warn("Exception %s encountered handling event %s",
                              e, msg)
