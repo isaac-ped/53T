@@ -139,6 +139,16 @@ class RemoteSession:
             cscores = { 'p{}'.format(id) if id != client.id else 'you': score for id, score in scores.items()}
             client.send('score_update', scores=cscores)
 
+    def end_game(self, scores):
+        scores_txt = ' | '.join('p{}: {}'.format(id, score) for id, score in scores.items())
+        winner = sorted(scores.items(), key=lambda x: x[1])[-1][0]
+        for client in self.clients:
+            if client.id == winner:
+                txt = scores_txt + ' :: YOU WIN!'
+            else:
+                txt = scores_txt +' :: YOU LOST.'
+            client.send('show_message', message=txt)
+
     def too_late(self, client, timeout):
         client.send('show_message', message='Too late! (Wait for {} seconds)'.format(timeout))
         for client2 in self.clients:

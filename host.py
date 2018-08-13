@@ -33,6 +33,13 @@ class Game:
         self.scores = { client.id : 0 for client in self.session.clients }
         self.current_yeller = None
 
+    def has_set(self):
+        for c1, c2, c3 in itertools.combinations(self.layout.values(), 3):
+            if c1.third(c2) == c3:
+                return True
+        return False
+
+
     @classmethod
     def iterxy(cls):
         for y in range(cls.BOARD_SHAPE[1]):
@@ -66,7 +73,7 @@ class Game:
         for (x,y), card in selected.items():
             self.deselect_card(card, x, y)
         self.selected.clear()
-    
+
 
     def cards_remain(self):
         return self.deck.cards_remaining() > 0
@@ -114,6 +121,11 @@ class Game:
             self.selected.clear()
             self.fill_board()
             self.reorganize()
+            log("{} cards remaining".format(self.deck.cards_remaining()))
+            log("Set present? {}".format(self.has_set()))
+            if self.deck.cards_remaining() == 0 and not self.has_set():
+                self.session.end_game(self.scores)
+                return
         else:
             log("%d cards selected : not a set", len(self.selected))
             self.scores[client.id] -= 1

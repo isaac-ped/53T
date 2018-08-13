@@ -54,6 +54,11 @@ class LocalSession:
     def send_scores(self, scores):
         self.ctl_queue.enqueue('score_update', scores=scores)
 
+    def end_game(self, scores):
+        txt = 'Final score: {}'.format(scores.values())
+        self.ctl_queue.enqueue('show_message', message=txt)
+
+
 class LocalHost:
 
     def __init__(self, game):
