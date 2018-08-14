@@ -24,7 +24,7 @@ class Game:
     SET_TIMEOUT = 5
 
     SESSION_CALLS = ('remove', 'select', 'deselect', 'place', 'set_yelled', 'score_update',
-                     'set_stolen', 'too_late', 'end_game', 'resume')
+                     'set_stolen', 'too_late', 'end_game', 'resume', 'more_requested')
 
     def __init__(self, session):
         self.deck = Deck()
@@ -32,9 +32,11 @@ class Game:
         self.layout = dict()
         self.selected = dict()
 
+        self.requests = {}
         self.session = session
         self.scores = { client.id : 0 for client in self.session.clients }
         self.current_yeller = None
+        self.reset_requests()
 
     def has_set(self):
         for c1, c2, c3 in itertools.combinations(self.layout.values(), 3):
@@ -42,6 +44,9 @@ class Game:
                 return True
         return False
 
+    def reset_requests(self):
+        for id in self.session.client_ids():
+            self.requests[id] = False
 
     @classmethod
     def iterxy(cls):
@@ -53,10 +58,20 @@ class Game:
         for ex_x in range(3):
             yield cls.BOARD_SHAPE[0] + 1, ex_x
 
+
+    def request_more(self, client):
+        self.requests[client.id] = True
+        num_requested = len([r for r in self.requests.values() if r])
+        self.session.more_requested(client.id, num_requested, len(self.requests))
+        if all(self.requests.values()):
+            self.place_three()
+            self.reset_requests()
+
     def yell_set(self, client):
         if self.current_yeller is None:
             self.session.set_yelled(client.id)
             self.current_yeller = (client, time.time() + self.SET_TIMEOUT)
+            self.requests[client.id] = False
         else:
             yeller, timeout = self.current_yeller
             if self.current_yeller != client:
@@ -65,6 +80,8 @@ class Game:
                     self.scores[yeller.id] -= 1
                     self.session.score_update(self.scores)
                     self.session.set_stolen(client.id)
+                    self.current_yeller = (client, time.time() + self.TIMEOUT)
+                    self.requests[client.id] = False
                 else:
                     self.session.too_late(client.id, int(timeout - time.time()))
 

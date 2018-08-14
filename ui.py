@@ -556,6 +556,15 @@ class LocalController:
         else:
             self.board.display_message("Player {} tried to SET too EARLY!".format(id))
 
+    @H.register('more_requested')
+    def handle_more_requested(self, client_id, num, total):
+        if num == total:
+            self.board.display_message("Everyone requested more cards")
+        elif id == self.client_id:
+            self.board.display_message("You and {}/{} others requested more cards".format(num - 1, total - 1))
+        else:
+            self.board.display_message("Player {} + {}/{} others requested more".format(client_id, num - 1, total - 1))
+
     @H.register('end_game')
     def handle_end_game(self, scores = {}, message=''):
         if len(scores) > 0:

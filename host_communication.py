@@ -9,7 +9,6 @@ from host import Game
 from logger import *
 from model import *
 
-init_stdoutlog()
 
 class RemoteClient:
 
@@ -62,7 +61,7 @@ class HostReceiver(object):
 
     @H.register('request_more')
     def handle_request_more(self, client):
-        return self.game.place_three()
+        return self.game.request_more(client)
 
     @H.register('yell_set')
     def handle_yell(self, client):
@@ -85,6 +84,7 @@ class RemoteSession(RPCSender):
     def __init__(self, ip, port, num_players=NUM_PLAYERS):
         RPCSender.__init__(self, Game.SESSION_CALLS)
         self.port = port
+        self.num_clients = num_players
         #create an INET, STREAMing socket
         serversocket = socket.socket(
                 socket.AF_INET, socket.SOCK_STREAM)
@@ -100,6 +100,10 @@ class RemoteSession(RPCSender):
             conn, _ = serversocket.accept()
             log("Accepted connection!")
             self.clients.append(RemoteClient(conn, id + 1))
+
+    def client_ids(self):
+        for client in self.clients:
+            yield client.id
 
     def generate_messages(self):
         sock_map = {c.sock : c for c in self.clients}
@@ -121,6 +125,7 @@ def run_host(ip='127.0.0.1', num_players=2):
     receiver.control_loop(session)
 
 if __name__ == '__main__':
+    init_stdoutlog()
     if len(sys.argv) > 3 :
         print("Usage: python %s [ip] [# players]" % sys.argv[0])
         exit(1)
