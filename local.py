@@ -6,6 +6,8 @@ import host
 from model import Card
 from control_queue import ControlQueue
 import curses
+from remote import RPCSender
+import json
 from logger import *
 from threading import Thread
 
@@ -22,42 +24,20 @@ class LocalClient:
     def __init__(self, id):
         self.id = id
 
-class LocalSession:
+class LocalSession(RPCSender):
+
+    CALLS = ('remove', 'select', 'deselect', 'place', 'set_yelled', 'score_update', 'set_stolen',
+             'too_late', 'end_game', 'resume')
 
     def __init__(self, ctl_queue):
+        RPCSender.__init__(self, self.CALLS)
         self.ctl_queue = ctl_queue
         self.clients = [LocalClient(1)]
+        self.ctl_queue.enqueue_obj(dict(type='client_id', args=[1], kwargs={}))
 
-    def remove(self, card, x, y):
-        log("Locally removing card at %d, %d", x, y)
-        self.ctl_queue.enqueue_msg("remove", card=card.properties, x=x, y=y)
-
-    def select(self, card, x, y):
-        log("Locally selecting card at %d, %d", x, y)
-        self.ctl_queue.enqueue_msg("select", card=card.properties, x=x, y=y)
-
-    def deselect(self, card, x, y):
-        log("Locally deselecting card at %d, %d", x, y)
-        self.ctl_queue.enqueue_msg("deselect", card=card.properties, x=x, y=y)
-
-    def place(self, card, x, y):
-        log("Locally enqueueing placing card %s at %d, %d", card, x, y)
-        self.ctl_queue.enqueue_msg("place", card=card.properties, x=x, y=y)
-
-    def yell_set(self, client_id):
-        log("Yelling SET!")
-        self.ctl_queue.enqueue_msg("self_set_yelled")
-
-    def resume_play(self):
-        log("Resuming...")
-        self.ctl_queue.enqueue_msg("resume")
-
-    def send_scores(self, scores):
-        self.ctl_queue.enqueue_msg('score_update', scores=scores)
-
-    def end_game(self, scores):
-        txt = 'Final score: {}'.format(scores.values())
-        self.ctl_queue.enqueue_msg('show_message', message=txt)
+    def send(self, msg):
+        jmsg = json.loads(msg[:-1])
+        self.ctl_queue.enqueue_obj(jmsg)
 
 
 class LocalHost:
@@ -69,7 +49,7 @@ class LocalHost:
         self.game.fill_board()
 
     def yell_set(self):
-        self.game.yell_set(None)
+        self.game.yell_set(LocalClient(1))
 
     def select_card(self, card, x, y):
         self.game.select_card(Card(*card), x, y)
