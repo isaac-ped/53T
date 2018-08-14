@@ -2,31 +2,33 @@ import json
 import select
 from functools import partial
 from logger import *
-
+import traceback 
 class RPCSender:
 
     def __init__(self, methods):
         for method_name in methods:
             log("Registering method %s", method_name)
-            setattr(self, method_name, partial(self.send, method_name))
+            setattr(self, method_name, partial(self._send, method_name))
 
-    def send(self, type, *args, **kwargs):
+    def _send(self, type, *args, **kwargs):
         rtn = dict(type = type, args=args, kwargs=kwargs)
         rtn = json.dumps(rtn) + '~'
-        self.sock.send(rtn)
+        self.send(rtn)
         log('Sent message %s' % rtn)
 
 
-def recv_iter(sock_map):
+def msg_generator(sock_map):
     sockets = sock_map.keys()
 
     while True:
         log("Selecting on %d sockets", len(sockets))
-        socks, _, errs = select.select(sockets, [], sockets)
-        if len(errs) > 0:
-            log("Error occurred on socket!")
-            return
-
+        try:
+            socks, _, errs = select.select(sockets, [], sockets)
+            if len(errs) > 0:
+                log("Error occurred on socket!")
+                return
+        except:
+            continue
         sock = socks[0]
 
         client =  sock_map[sock]
@@ -46,9 +48,40 @@ def recv_iter(sock_map):
 
             messages = msg.split('~')
             for message in messages:
+                if len(message) == 0:
+                    continue
                 try:
                     yield json.loads(message), client
                 except Exception as e:
                     log_warn("Could not load JSON from %s", message)
+
+
+class MsgHandler(object):
+
+    def __init__(self):
+        self.handlers = {}
+        self.args = []
+
+    def bind(self, *args):
+        self.args = list(args)
+
+    def register(self, label):
+        def inner(fn):
+            self.handlers[label] = fn
+            return fn
+        return inner
+
+    def handle(self, type, args, kwargs):
+        args = self.args[:] + list(args)
+        if type in self.handlers:
+            try:
+                log("Handling message %s" %[type, args, kwargs])
+                return self.handlers[type](*args, **kwargs)
+            except Exception as e:
+                log_warn("Exception %s encondered handling event %s", e, [type, [self.args] + args, kwargs])
+                log_warn(traceback.format_exc())
+                raise
+        else:
+            log_warn("Received unknown message type: %s", type)
 
 

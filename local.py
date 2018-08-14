@@ -28,19 +28,19 @@ class LocalSession:
         self.ctl_queue = ctl_queue
         self.clients = [LocalClient(1)]
 
-    def remove_card(self, card, x, y):
+    def remove(self, card, x, y):
         log("Locally removing card at %d, %d", x, y)
         self.ctl_queue.enqueue_msg("remove", card=card.properties, x=x, y=y)
 
-    def select_card(self, card, x, y):
+    def select(self, card, x, y):
         log("Locally selecting card at %d, %d", x, y)
         self.ctl_queue.enqueue_msg("select", card=card.properties, x=x, y=y)
 
-    def deselect_card(self, card, x, y):
+    def deselect(self, card, x, y):
         log("Locally deselecting card at %d, %d", x, y)
         self.ctl_queue.enqueue_msg("deselect", card=card.properties, x=x, y=y)
 
-    def place_card(self, card, x, y):
+    def place(self, card, x, y):
         log("Locally enqueueing placing card %s at %d, %d", card, x, y)
         self.ctl_queue.enqueue_msg("place", card=card.properties, x=x, y=y)
 

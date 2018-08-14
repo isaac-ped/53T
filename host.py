@@ -52,7 +52,7 @@ class Game:
 
     def yell_set(self, client):
         if self.current_yeller is None:
-            self.session.yell_set(client)
+            self.session.set_yelled(client.id)
             self.current_yeller = (client, time.time() + self.SET_TIMEOUT)
         else:
             yeller, timeout = self.current_yeller
@@ -60,13 +60,10 @@ class Game:
                 if time.time() > timeout:
                     self.deselect_all()
                     self.scores[yeller.id] -= 1
-                    self.session.send_scores(self.scores)
-                    self.session.yell_set(client)
-                    client.send('show_message', message = "You STOLE their set!")
-                    yeller.send('show_message', message = "Your set was STOLEN!")
-                    self.current_yeller = (client, time.time() + self.SET_TIMEOUT)
+                    self.session.score_update(self.scores)
+                    self.session.set_stolen(client.id)
                 else:
-                    self.session.too_late(client, int(timeout - time.time()))
+                    self.session.too_late(client.id, int(timeout - time.time()))
 
     def deselect_all(self):
         selected = copy.deepcopy(self.selected)
@@ -99,7 +96,7 @@ class Game:
             log_warn("Cannot remove card")
             return
 
-        self.session.remove_card(card, x, y)
+        self.session.remove(card.properties, x, y)
         if (x, y) in self.selected:
             del self.selected[(x, y)]
         del self.layout[(x,y)]
@@ -108,13 +105,13 @@ class Game:
         if not self.valid_card(card, x, y):
             log_warn("Cannot select card")
             return
-        self.session.select_card(card, x, y)
+        self.session.select(card.properties, x, y)
         self.selected[(x,y)] = card
 
     def check_set(self, client):
         if len(self.selected) == 3 and is_set(*self.selected.values()):
             self.scores[client.id] += 1
-            self.session.send_scores(self.scores)
+            self.session.score_update(self.scores)
             selected = copy.deepcopy(self.selected)
             for (x,y), card in selected.items():
                 self.remove_card(card, x, y)
@@ -129,10 +126,10 @@ class Game:
         else:
             log("%d cards selected : not a set", len(self.selected))
             self.scores[client.id] -= 1
-            self.session.send_scores(self.scores)
+            self.session.score_update(self.scores)
             self.selected.clear()
         self.current_yeller = None
-        self.session.resume_play()
+        self.session.resume()
 
     def place_three(self):
         for _ in range(3):
@@ -146,7 +143,7 @@ class Game:
             log_warn("Deselecting non-selected card")
         else:
             del self.selected[(x,y)]
-        self.session.deselect_card(card, x, y)
+        self.session.deselect(card.properties, x, y)
 
     def place_card(self, card):
         if len(self.layout) == self.MAX_CARDS:
@@ -157,7 +154,7 @@ class Game:
             log_error("MAX_CARDS not placed but no next_spot available")
             return
         self.layout[(x,y)] = card
-        self.session.place_card(card, x, y)
+        self.session.place(card.properties, x, y)
         #time.sleep(self.DELAY)
 
     def place_next(self):
