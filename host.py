@@ -23,6 +23,9 @@ class Game:
 
     SET_TIMEOUT = 5
 
+    SESSION_CALLS = ('remove', 'select', 'deselect', 'place', 'set_yelled', 'score_update',
+                     'set_stolen', 'too_late', 'end_game', 'resume')
+
     def __init__(self, session):
         self.deck = Deck()
         self.deck.shuffle()
@@ -122,7 +125,7 @@ class Game:
             log("Set present? {}".format(self.has_set()))
             if self.deck.cards_remaining() == 0 and not self.has_set():
                 self.session.end_game(self.scores)
-                return
+                return True
         else:
             log("%d cards selected : not a set", len(self.selected))
             self.scores[client.id] -= 1
@@ -185,3 +188,7 @@ class Game:
                 self.remove_card(c, x, y)
                 self.place_card(c)
                 updated = True
+
+    def disconnect(self, client):
+        self.session.end_game(self.scores, "Player {} exited early -- ".format(client.id))
+        return True

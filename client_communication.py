@@ -13,7 +13,7 @@ init_logfile("53T_client.log")
 
 class RemoteHost(RPCSender):
 
-    CALLS = ('select_card', 'deselect_card', 'check_set', 'yell_set', 'request_more', 'start')
+    CALLS = ('select_card', 'deselect_card', 'check_set', 'yell_set', 'request_more', 'start', 'disconnect')
 
     def __init__(self, ip, port, queue):
         RPCSender.__init__(self, self.CALLS)
@@ -40,10 +40,9 @@ class RemoteHost(RPCSender):
             log("Received message %s from host", msg)
             self.queue.enqueue_obj(msg)
         log_warn("RECEIVE LOOP EXITED!")
+        self.queue.enqueue_msg('end_game', message="Host disconnected")
 
-ip = '127.0.0.1'
-
-def run_client(stdscr):
+def run_client(stdscr, ip='127.0.0.1'):
 
     queue = ControlQueue()
 
@@ -55,8 +54,9 @@ def run_client(stdscr):
 
     controller = ui.LocalController(board, remote_host, queue)
 
+    rtn = []
     control_thread = Thread(target = controller.control_loop,
-                            args = (stdscr,))
+                            args = (stdscr, rtn))
 
     control_thread.start()
 
@@ -64,6 +64,11 @@ def run_client(stdscr):
     remote_host.receive_loop()
 
     control_thread.join()
+
+    log("Exiting run_client()")
+
+    if len(rtn) > 0:
+        return rtn[0]
 
 
 if __name__ == '__main__':
@@ -73,4 +78,8 @@ if __name__ == '__main__':
         time.sleep(5)
     if len(sys.argv) > 1:
         ip = sys.argv[1]
-    curses.wrapper(run_client)
+    else:
+        ip = '127.0.0.1'
+    rtn = curses.wrapper(run_client, ip)
+    log("Exited...")
+    print("Exited with message: " + str(rtn))

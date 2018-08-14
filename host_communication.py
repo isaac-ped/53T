@@ -5,6 +5,7 @@ import json
 import select
 from remote import RPCSender, MsgHandler,  msg_generator
 from control_queue import ControlQueue
+from host import Game
 from logger import *
 from model import *
 
@@ -25,7 +26,7 @@ class RemoteClient:
     def recv(self):
         return self.sock.recv(2048)
 
-class HostReceiver():
+class HostReceiver(object):
 
     H = MsgHandler()
 
@@ -43,43 +44,46 @@ class HostReceiver():
         )
 
     @H.register('start')
-    def handle_start(self, sock):
+    def handle_start(self, client):
         log("Handling start message")
-        self.game.fill_board()
+        return self.game.fill_board()
 
     @H.register('select_card')
-    def handle_select(self, sock, card, x, y):
-        self.game.select_card(Card(*card), x, y)
+    def handle_select(self, client, card, x, y):
+        return self.game.select_card(Card(*card), x, y)
 
     @H.register('deselect_card')
-    def handle_deselect(self, sock, card, x, y):
-        self.game.deselect_card(Card(*card), x, y)
+    def handle_deselect(self, client, card, x, y):
+        return self.game.deselect_card(Card(*card), x, y)
 
     @H.register('check_set')
-    def handle_check(self, sock):
-        self.game.check_set(sock)
+    def handle_check(self, client):
+        return self.game.check_set(client)
 
     @H.register('request_more')
-    def handle_request_more(self, sock):
-        self.game.place_three()
+    def handle_request_more(self, client):
+        return self.game.place_three()
 
     @H.register('yell_set')
     def handle_yell(self, client):
-        self.game.yell_set(client)
+        return self.game.yell_set(client)
+
+    @H.register('disconnect')
+    def handle_disconnect(self, client):
+        return self.game.disconnect(client)
 
     def control_loop(self, session):
         for msg, client in session.generate_messages():
-            self.H.handle(msg['type'], [client] + msg['args'], msg['kwargs'])
-
+            rtn = self.H.handle(msg['type'], [client] + msg['args'], msg['kwargs'])
+            if rtn == True:
+                return True
 
 class RemoteSession(RPCSender):
 
     NUM_PLAYERS = 2
 
-    CALLS = ( 'remove', 'select', 'deselect', 'place', 'set_yelled', 'score_update', 'set_stolen', 'too_late', 'end_game', 'resume')
-
     def __init__(self, ip, port, num_players=NUM_PLAYERS):
-        RPCSender.__init__(self, self.CALLS)
+        RPCSender.__init__(self, Game.SESSION_CALLS)
         self.port = port
         #create an INET, STREAMing socket
         serversocket = socket.socket(
@@ -106,12 +110,10 @@ class RemoteSession(RPCSender):
         for client in self.clients:
             client.send(msg)
 
-ip='127.0.0.1'
-
-def run_host(ip=ip, num_players=2):
+def run_host(ip='127.0.0.1', num_players=2):
 
     log("Here!")
-    session = RemoteSession(ip, 9999, num_players)
+    session = RemoteSession(ip, 9999, int(num_players))
     game = host.Game(session)
 
     receiver = HostReceiver(game)
@@ -119,10 +121,7 @@ def run_host(ip=ip, num_players=2):
     receiver.control_loop(session)
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        print("Usage: python %s <ip> <# players>" % sys.argv[0])
+    if len(sys.argv) > 3 :
+        print("Usage: python %s [ip] [# players]" % sys.argv[0])
         exit(1)
-    if len(sys.argv) > 2:
-        run_host(sys.argv[1], int(sys.argv[2]))
-    else:
-        run_host(sys.argv[1])
+    run_host(*sys.argv[1:])

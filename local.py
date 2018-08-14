@@ -4,6 +4,7 @@ import time
 import ui
 import host
 from model import Card
+from host import Game
 from control_queue import ControlQueue
 import curses
 from remote import RPCSender
@@ -26,11 +27,8 @@ class LocalClient:
 
 class LocalSession(RPCSender):
 
-    CALLS = ('remove', 'select', 'deselect', 'place', 'set_yelled', 'score_update', 'set_stolen',
-             'too_late', 'end_game', 'resume')
-
     def __init__(self, ctl_queue):
-        RPCSender.__init__(self, self.CALLS)
+        RPCSender.__init__(self, Game.SESSION_CALLS)
         self.ctl_queue = ctl_queue
         self.clients = [LocalClient(1)]
         self.ctl_queue.enqueue_obj(dict(type='client_id', args=[1], kwargs={}))
@@ -63,6 +61,9 @@ class LocalHost:
     def request_more(self):
         self.game.place_three()
 
+    def disconnect(self):
+        self.game.disconnect(LocalClient(1))
+
 def run_local(stdscr):
     ui.Color.init()
     board = ui.Board(stdscr)
@@ -78,14 +79,21 @@ def run_local(stdscr):
 
     controller = ui.LocalController(board, local_host, queue)
 
+    rtn = []
     control_thread = Thread(target = controller.control_loop,
-                            args = (stdscr,))
+                            args = (stdscr, rtn))
     control_thread.start()
 
     signal.signal(signal.SIGINT, interrupt_handler)
     local_host.start()
 
+    log("Attempting to join control thread")
     control_thread.join()
+    log("Control thread joined")
+
+    if len(rtn) > 0:
+        return rtn
+
 
 if __name__ == '__main__':
     if (sys.version_info > (3, 0)):

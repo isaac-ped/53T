@@ -368,6 +368,8 @@ class Board:
 def key_monitor(stdscr, queue):
     while True:
         ch = stdscr.getch()
+        if queue.exiting:
+            return
 
         if Board.is_resized():
             queue.enqueue_msg('resize')
@@ -423,7 +425,7 @@ class LocalController:
     @H.register('quit')
     def handle_quit(self):
         log("Exiting...")
-        exit(-1)
+        self.host.disconnect()
 
     @H.register('resize')
     def handle_resize(self):
@@ -555,28 +557,48 @@ class LocalController:
             self.board.display_message("Player {} tried to SET too EARLY!".format(id))
 
     @H.register('end_game')
-    def handle_end_game(self, scores):
-        scores_txt = []
-        for client, score in scores.items():
-            if client == self.client_id:
-                scores_txt.append("YOU: {}", score)
+    def handle_end_game(self, scores = {}, message=''):
+        if len(scores) > 0:
+            scores_txt = []
+            for client, score in scores.items():
+                if client == self.client_id:
+                    scores_txt.append("YOU: {}", score)
+                else:
+                    scores_txt.append("P{}:{}".format(client, score))
+            sorted_scores = sorted(scores.values())
+            if len(sorted_scores) > 0:
+                win_score = sorted_scores[-1]
             else:
-                scores_txt.append("P{}:{}".format(client, score))
-        winner = sorted(scores.items(), key=lambda x: x[1])[-1][1]
-        scores_txt = ' | '.join(scores_txt)
-        if winner == scores[str(self.client_id)]:
-            self.board.display_message(scores_txt + " :: YOU WINN!")
-        else:
-            self.board.display_message(scores_txt + " :: YOU LOOOOSE.")
+                win_score = 0
+            scores_txt = ' | '.join(scores_txt)
+            if win_score == scores[str(self.client_id)]:
+                message = message + scores_txt + " :: YOU WINN!"
+            else:
+                message = message + scores_txt + " :: YOU LOOOOSE."
+        self.board.display_message(message)
+        time.sleep(5)
+        self.board.display_message("Press any key to quit")
+        return message
 
 
-    def control_loop(self, stdscr):
+    def control_loop(self, stdscr, rtn_arr):
+        log("Starting control loop()")
         keypress_thread = Thread(target=key_monitor,
                                  args=(stdscr, self.queue))
         keypress_thread.start()
         self.board.display_message("Press SPACE to call set | BACKSPACE to quit")
 
+        log("Entering loop")
         while True:
             msg = self.queue.dequeue()
             log("UI Received message %s", msg)
-            self.H.handle(msg['type'], msg['args'], msg['kwargs'])
+            rtn = self.H.handle(msg['type'], msg['args'], msg['kwargs'])
+            if rtn is not None:
+                rtn_arr.append(rtn)
+                log("Exiting control loop")
+                self.queue.signal_exit()
+                log("Waiting on join keypress thread")
+                keypress_thread.join()
+                curses.mousemask(0)
+                stdscr.keypad(False)
+                return

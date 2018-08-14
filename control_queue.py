@@ -10,6 +10,11 @@ class ControlQueue:
 
     def __init__(self):
         self.queue = Queue()
+        self.exiting = False
+
+    def signal_exit(self):
+        log("Exit signaled in queue")
+        self.exiting = True
 
     def enqueue_obj(self, obj):
         log("Putting object %s in queue", obj)
