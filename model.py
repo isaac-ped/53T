@@ -52,6 +52,7 @@ class Card:
 
     def __str__(self):
         return '< Card: ' + str(self.properties) + " >"
+            
     
     def __repr__(self):
         return str(self)

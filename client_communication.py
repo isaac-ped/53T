@@ -6,14 +6,19 @@ import socket
 import ui
 from threading import Thread
 from control_queue import ControlQueue
+from remote import RPCSender, msg_generator
 from logger import *
 
 init_logfile("53T_client.log")
 
-class RemoteHost:
+class RemoteHost(RPCSender):
+
+    CALLS = ('select_card', 'deselect_card', 'check_set', 'yell_set', 'request_more', 'start')
 
     def __init__(self, ip, port, queue):
+        RPCSender.__init__(self, self.CALLS)
         connected = False
+
         while not connected:
             try:
                 log("Attmepting to connect")
@@ -27,46 +32,14 @@ class RemoteHost:
                 time.sleep(1)
         self.queue = queue
 
+    def send(self, msg):
+        self.sock.send(msg)
+
     def receive_loop(self):
-        msg_buffer = ''
-        while True:
-            while not '~' in msg_buffer:
-                try:
-                    msg_buffer += self.sock.recv(1024)
-                except socket.error as e:
-                    log("Got error reading socket: %s" % e)
-
-            log("Received %s", msg_buffer)
-
-            messages = msg_buffer.split('~')
-            for msg in messages:
-                if len(msg) > 0:
-                    self.queue.raw_enqueue(msg)
-            msg_buffer = ''
-
-    def send(self, type, *args, **kwargs):
-        rtn = dict(type=type)
-        rtn['args'] = kwargs
-        self.sock.send(json.dumps(rtn) + '~')
-        log("Sent message %s" % rtn)
-
-    def select_card(self, card, x, y):
-        self.send('select_card', card=card.properties, x=x, y=y)
-
-    def deselect_card(self, card, x, y):
-        self.send('deselect_card', card=card.properties, x=x, y=y)
-
-    def check_set(self):
-        self.send('check_set')
-
-    def yell_set(self):
-        self.send('yell_set')
-
-    def request_more(self):
-        self.send('request_more')
-
-    def start(self):
-        self.send('start')
+        for msg, _ in msg_generator({self.sock: 'host'}):
+            log("Received message %s from host", msg)
+            self.queue.enqueue_obj(msg)
+        log_warn("RECEIVE LOOP EXITED!")
 
 ip = '127.0.0.1'
 
