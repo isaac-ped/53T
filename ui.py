@@ -479,9 +479,9 @@ class LocalController:
                 log_warn("Non-present (%d,%d) card clicked", cx, cy)
                 return
             if (cx, cy) not in self.selected:
-                self.host.select_card(self.layout[(cx, cy)], cx, cy)
+                self.host.select_card(self.layout[(cx, cy)].properties, cx, cy)
             else:
-                self.host.deselect_card(self.layout[(cx, cy)], cx, cy)
+                self.host.deselect_card(self.layout[(cx, cy)].properties, cx, cy)
         else:
             self.board.display_message("Must call SET with SPACEBAR first")
 
