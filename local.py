@@ -31,6 +31,7 @@ class LocalSession(RPCSender):
         RPCSender.__init__(self, Game.SESSION_CALLS)
         self.ctl_queue = ctl_queue
         self.clients = [LocalClient(1)]
+        self.client_ids = lambda: [1]
         self.ctl_queue.enqueue_obj(dict(type='client_id', args=[1], kwargs={}))
 
     def send(self, msg):

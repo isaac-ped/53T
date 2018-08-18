@@ -33,15 +33,6 @@ class HostReceiver(object):
         self.game = game
         self.H.bind(self)
 
-        self.event_handlers = dict(
-                select_card = self.handle_select,
-                deselect_card = self.handle_deselect,
-                check_set = self.handle_check,
-                yell_set = self.handle_yell,
-                request_more = self.handle_request_more,
-                start = self.handle_start
-        )
-
     @H.register('start')
     def handle_start(self, client):
         log("Handling start message")
